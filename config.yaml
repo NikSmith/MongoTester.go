@@ -1,7 +1,11 @@
+
 Addrs: 127.0.0.1
 Timeout: 60
 Database: admin
 
 
 Username:
+
+
 Password:
+Time: 10

@@ -13,6 +13,7 @@ type Config struct {
 	Database string
 	Username string
 	Password string
+	Time int
 }
 var CFG Config
 
@@ -145,7 +146,7 @@ func main(){
 	start = make(chan bool,2)
 	die = make(chan bool,2)
 
-	seconds := 1
+	seconds := CFG.Time
 	namberGorutines:= 10
 
 	info := &mgo.DialInfo{
