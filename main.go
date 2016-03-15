@@ -5,6 +5,7 @@ import (
 	"gopkg.in/mgo.v2"
 	"strconv"
 	"github.com/spf13/viper"
+	"gopkg.in/mgo.v2/bson"
 )
 
 type Config struct {
@@ -14,6 +15,9 @@ type Config struct {
 	Username string
 	Password string
 	Time int
+	NumberGorutines int
+	DbName string
+	CollName string
 }
 var CFG Config
 
@@ -56,7 +60,8 @@ func threadWrite (i int) {
 	d:= DB.Copy()
 	defer d.Close()
 	arr:= make(map[string]interface{})
-
+	var int int
+	count = 0
 	<-start
 	for{
 		select {
@@ -64,21 +69,22 @@ func threadWrite (i int) {
 			return
 			default:
 				count++
+				int = count
 				arr["value"] = str
-				arr["value1"] = count + 1
-				arr["value2"] = count + 2
-				arr["value3"] = count + 3
-				arr["value4"] = count + 4
-				arr["value5"] = count + 5
-				arr["value6"] = count + 6
-				arr["value7"] = count + 7
-				arr["value8"] = count + 8
-				arr["value9"] = count + 9
-				arr["value10"] = count + 10
-				arr["value11"] = count + 11
-				arr["value12"] = count + 12
-				arr["value13"] = count + 13
-				arr["value14"] = count + 14
+				arr["value1"] = int + 1
+				arr["value2"] = int + 2
+				arr["value3"] = int + 3
+				arr["value4"] = int + 4
+				arr["value5"] = int + 5
+				arr["value6"] = int + 6
+				arr["value7"] = int + 7
+				arr["value8"] = int + 8
+				arr["value9"] = int + 9
+				arr["value10"] = int + 10
+				arr["value11"] = int + 11
+				arr["value12"] = int + 12
+				arr["value13"] = int + 13
+				arr["value14"] = int + 14
 
 				d.DB("test").C("test").Insert(arr)
 
@@ -88,7 +94,9 @@ func threadWrite (i int) {
 func threadRead (i int) {
 	d:= DB.Copy()
 	defer d.Close()
-
+	notFound = 0
+	var int int
+	count = 0
 	arr:= make(map[string]interface{})
 
 	<-start
@@ -98,31 +106,31 @@ func threadRead (i int) {
 			return
 		default:
 			count++
+			int = count
 			arr["value"] = str
-			arr["value1"] = count + 1
-			arr["value2"] = count + 2
-			arr["value3"] = count + 3
-			arr["value4"] = count + 4
-			arr["value5"] = count + 5
-			arr["value6"] = count + 6
-			arr["value7"] = count + 7
-			arr["value8"] = count + 8
-			arr["value9"] = count + 9
-			arr["value10"] = count + 10
-			arr["value11"] = count + 11
-			arr["value12"] = count + 12
-			arr["value13"] = count + 13
-			arr["value14"] = count + 14
+			arr["value1"] = int + 1
+			arr["value2"] = int + 2
+			arr["value3"] = int + 3
+			arr["value4"] = int + 4
+			arr["value5"] = int + 5
+			arr["value6"] = int + 6
+			arr["value7"] = int + 7
+			arr["value8"] = int + 8
+			arr["value9"] = int + 9
+			arr["value10"] = int + 10
+			arr["value11"] = int + 11
+			arr["value12"] = int + 12
+			arr["value13"] = int + 13
+			arr["value14"] = int + 14
 
 
-			var res interface{}
-			err := d.DB("test").C("test").Find(arr).One(&res)
+			var res []interface{}
+			err := d.DB("test").C("test").Find(arr).Limit(1).All(&res)
+			if len(res) == 0 {
+				notFound++
+			}
 			if err != nil {
-				if err == mgo.ErrNotFound {
-					notFound++
-				} else {
-					fmt.Println(err)
-				}
+				fmt.Println(err)
 			}
 
 		}
@@ -147,7 +155,7 @@ func main(){
 	die = make(chan bool,2)
 
 	seconds := CFG.Time
-	namberGorutines:= 10
+	namberGorutines:= CFG.NumberGorutines
 
 	info := &mgo.DialInfo{
 		Addrs:    []string{CFG.Addrs},
@@ -166,7 +174,11 @@ func main(){
 
 	db.SetMode(mgo.Monotonic, true)
 	DB = db
-	DB.DB("test").C("test").DropCollection()
+	_, err = DB.DB(CFG.DbName).C(CFG.CollName).RemoveAll(bson.M{})
+	if err != nil {
+		fmt.Println(err)
+	}
+
 
 	/* ============ Тест записи без индексов ============  */
 	for i:=0; i<namberGorutines; i++{
@@ -181,12 +193,11 @@ func main(){
 	for i:=0; i<namberGorutines; i++{
 		die <-true
 	}
-	time.Sleep(1 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	fmt.Println("Write:                                   ", count/seconds,"TPS")
 
 	/* ============  Тест чтения без индексов ============  */
-	count = 0
 	for i:=0; i<namberGorutines; i++{
 		go threadRead(i)
 	}
@@ -199,12 +210,11 @@ func main(){
 	for i:=0; i<namberGorutines; i++{
 		die <-true
 	}
-	time.Sleep(1 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	fmt.Println("Read:                                    ", count/seconds, "TPS", "          Not Found: ", notFound)
 
 	/* ============ Тест записи с единым индексом ============ */
-	count = 0
 	indexG := mgo.Index{
 		Key: []string{"value","value1","value2","value3","value4","value5","value6","value7","value8","value9","value10","value11","value12","value13","value14",},
 		Name: "all",
@@ -226,12 +236,11 @@ func main(){
 	for i:=0; i<namberGorutines; i++{
 		die <-true
 	}
-	time.Sleep(1 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	fmt.Println("Write with global index:                 ", count/seconds,"TPS")
 
 	/* ============ Тест чтения с единым индексом ============ */
-	count = 0
 	for i:=0; i<namberGorutines; i++{
 		go threadRead(i)
 	}
@@ -244,14 +253,13 @@ func main(){
 	for i:=0; i<namberGorutines; i++{
 		die <-true
 	}
-	time.Sleep(1 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	fmt.Println("Read with global index:                  ", count/seconds,"TPS", "          Not Found: ", notFound)
 
 
 
 	/* ============ Тест записи с индексом для каждого поля ============ */
-	count = 0
 	err = DB.DB("test").C("test").DropIndexName("all")
 	if err!=nil{
 		fmt.Println(err)
@@ -273,13 +281,11 @@ func main(){
 	for i:=0; i<namberGorutines; i++{
 		die <-true
 	}
-	time.Sleep(1 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	fmt.Println("Write with index for each field:         ", count/seconds,"TPS")
 
 	/* ============ Тест чтения с индексом для каждого поля ============ */
-
-	count = 0
 	for i:=0; i<namberGorutines; i++{
 		go threadRead(i)
 	}
